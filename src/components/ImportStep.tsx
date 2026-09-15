@@ -67,6 +67,9 @@ export function ImportStep({ onFile, rejectedFile, problems }: Props) {
       <p className="privacy">
         Your file stays on this computer. Everything runs in your browser, and nothing is uploaded.
       </p>
+      <p className="privacy">
+        Picking up a review you started earlier? Open the same export, and you’ll be able to continue.
+      </p>
 
       {rejectedFile && errors.length > 0 && (
         <div className="callout error" role="alert">

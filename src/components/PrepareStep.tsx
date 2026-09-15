@@ -1,7 +1,10 @@
+import { useRef } from 'react';
 import type { Issue, IssueKind } from '../data/issues';
 import type { Roster } from '../data/roster';
 import { ROLE_LABEL } from '../data/schema';
 import { capacityCheck, type MatchSettings } from '../matching/run';
+import { progress as reviewProgress, type Compatibility, type ReviewSession } from '../review/session';
+import { formatWhen } from '../ui/dates';
 import { plural } from '../ui/format';
 import { PairingsEditor } from './PairingsEditor';
 
@@ -19,6 +22,11 @@ interface Props {
   onToggleExcluded: (personId: string) => void;
   onSuggest: () => void;
   runError: string | null;
+  /** Reviews saved in this browser that fit this file. */
+  resumable: { saved: ReviewSession; compat: Compatibility }[];
+  onResume: (saved: ReviewSession, compat: Compatibility) => void;
+  onOpenProgressFile: (file: File) => void;
+  resumeError: string | null;
 }
 
 export function PrepareStep({
@@ -30,7 +38,13 @@ export function PrepareStep({
   onToggleExcluded,
   onSuggest,
   runError,
+  resumable,
+  onResume,
+  onOpenProgressFile,
+  resumeError,
 }: Props) {
+  const progressInput = useRef<HTMLInputElement>(null);
+
   const blocking = roster.issues.filter((i) => i.severity === 'error');
   const notes = roster.issues.filter((i) => i.severity !== 'error');
   const capacity = capacityCheck(roster, settings.maxPerMentor);
@@ -51,6 +65,46 @@ export function PrepareStep({
       <p className="lede">
         From <strong>{fileName}</strong>
       </p>
+
+      {resumable.map(({ saved, compat }) => {
+        const done = reviewProgress(saved);
+        return (
+          <div className="callout resume" key={saved.id}>
+            <div>
+              <strong>You have a review in progress for these students.</strong>
+              <p>
+                {done.reviewed} of {done.total} reviewed · last changed {formatWhen(saved.updatedAt)}
+              </p>
+            </div>
+            <button type="button" className="primary" onClick={() => onResume(saved, compat)}>
+              Continue review
+            </button>
+          </div>
+        );
+      })}
+      <p className="resume-file">
+        Continuing a review from another computer?{' '}
+        <button type="button" className="link-button inline" onClick={() => progressInput.current?.click()}>
+          Open a progress file
+        </button>
+        <input
+          ref={progressInput}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          data-testid="progress-input"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onOpenProgressFile(file);
+            e.target.value = '';
+          }}
+        />
+      </p>
+      {resumeError && (
+        <div className="callout error" role="alert">
+          {resumeError}
+        </div>
+      )}
 
       <div className="stats">
         <div className="stat">
