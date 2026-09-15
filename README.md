@@ -2,6 +2,8 @@
 
 Suggests alumni mentors for students, starting from an Airtable People export, for staff to review.
 
+**Use it:** https://drewstackhouse.github.io/clasmentors/
+
 Everything runs in the browser. The uploaded file never leaves the computer it's opened on, and the site makes
 no requests to anyone else: the embedding model and its runtime are served from this site.
 
@@ -11,8 +13,14 @@ no requests to anyone else: the embedding model and its runtime are served from 
 2. **Check and set up.** The app flags duplicate records, empty profiles and links it can't read, and lets you
    leave people out of a run. Choose the most students per mentor, and whether every mentor should get a
    student before anyone gets a second.
-3. **Suggestions.** Students who already have a mentor are left alone. Everyone else gets a suggested mentor
-   and a ranked list of alternatives.
+3. **Review.** Students who already have a mentor are left alone. Everyone else gets a suggested mentor.
+   Go through the students, with those who most need a look listed first: see each student's closest mentors,
+   how many students each mentor already has, and who else they're set up with, then confirm or choose someone
+   else. There's no limit on how many students a mentor can take; caseloads are shown so it's a conscious choice.
+4. **Export for Airtable:** a CSV with one row per student and mentor, keyed on Airtable Person IDs.
+
+Progress saves automatically in the browser. To continue on another computer, download a progress file and open
+it alongside the same export. The progress file holds record ids and rankings only, with no names or answers.
 
 Under the hood:
 
@@ -45,6 +53,7 @@ npm run build    # output in dist/
 | `src/data/` | CSV parsing, roster building, data checks |
 | `src/embed/` | The embedding worker and its page-side client |
 | `src/matching/` | Scoring, assignment, and the end-to-end run |
+| `src/review/` | Review state, caseloads, export, and saving progress |
 | `src/components/` | Interface |
 | `scripts/fetch-model.mjs` | Downloads the pinned model into `public/models/` |
 
