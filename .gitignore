@@ -1,0 +1,28 @@
+# Dependencies / build
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- REAL PARTICIPANT DATA -- NEVER COMMIT ---------------------------------
+# This repo is public (GitHub Pages). Exports from Airtable contain student and
+# alumni names, email addresses and personal statements. Keep them off GitHub.
+# Only synthetic fixtures under src/**/__fixtures__/ belong in version control.
+import.csv
+*.csv
+!src/**/__fixtures__/*.csv
+!public/sample-data/*.csv
+data/
+private/
+*.xlsx
