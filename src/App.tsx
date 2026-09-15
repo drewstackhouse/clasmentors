@@ -1,122 +1,128 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useMemo, useState } from 'react';
+import { decodeCsv, parseRoster, type ParseResult } from './data/parse';
+import { buildRoster } from './data/roster';
+import { embedder } from './embed/client';
+import { DEFAULT_SETTINGS, proposeMatches, type MatchSettings, type Proposal } from './matching/run';
+import { ImportStep } from './components/ImportStep';
+import { PrepareStep } from './components/PrepareStep';
+import { RunningStep, type RunProgress } from './components/RunningStep';
+import { ResultsPreview } from './components/ResultsPreview';
 
-function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+interface LoadedFile {
+  name: string;
+  parsed: ParseResult;
 }
 
-export default App
+const STEPS = ['Upload', 'Check and set up', 'Suggestions'] as const;
+
+export default function App() {
+  const [file, setFile] = useState<LoadedFile | null>(null);
+  const [excluded, setExcluded] = useState<ReadonlySet<string>>(new Set());
+  const [settings, setSettings] = useState<MatchSettings>(() => structuredClone(DEFAULT_SETTINGS));
+  const [progress, setProgress] = useState<RunProgress | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [proposal, setProposal] = useState<Proposal | null>(null);
+
+  const roster = useMemo(
+    () => (file && file.parsed.people.length > 0 ? buildRoster(file.parsed.people, file.parsed.issues, excluded) : null),
+    [file, excluded],
+  );
+
+  async function openFile(chosen: File) {
+    const parsed = parseRoster(decodeCsv(await chosen.arrayBuffer()));
+    setFile({ name: chosen.name, parsed });
+    setExcluded(new Set());
+    setProposal(null);
+    setRunError(null);
+  }
+
+  function toggleExcluded(id: string) {
+    setExcluded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function suggestMatches() {
+    if (!roster) return;
+    setRunError(null);
+    setProposal(null);
+    setProgress({ stage: 'engine', loadedBytes: 0, totalBytes: 0 });
+    try {
+      await embedder.load((p) => setProgress({ stage: 'engine', ...p }));
+      setProgress({ stage: 'answers', done: 0, total: 0 });
+      const result = await proposeMatches(roster, settings, embedder, (done, total) =>
+        setProgress({ stage: 'answers', done, total }),
+      );
+      setProposal(result);
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setProgress(null);
+    }
+  }
+
+  function startOver() {
+    setFile(null);
+    setExcluded(new Set());
+    setProposal(null);
+    setRunError(null);
+  }
+
+  const stepIndex = proposal ? 2 : roster ? 1 : 0;
+
+  let view;
+  if (progress) {
+    view = <RunningStep progress={progress} />;
+  } else if (roster && proposal) {
+    view = <ResultsPreview roster={roster} proposal={proposal} onChangeSettings={() => setProposal(null)} />;
+  } else if (roster && file) {
+    view = (
+      <PrepareStep
+        roster={roster}
+        columns={file.parsed.columns}
+        fileName={file.name}
+        settings={settings}
+        onSettingsChange={setSettings}
+        onToggleExcluded={toggleExcluded}
+        onSuggest={suggestMatches}
+        runError={runError}
+      />
+    );
+  } else {
+    view = <ImportStep onFile={openFile} rejectedFile={file?.name} problems={file?.parsed.issues ?? []} />;
+  }
+
+  return (
+    <div className="app">
+      <header className="app-header">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true" />
+          CLAS Mentor Match
+        </div>
+        {file && !progress && (
+          <button type="button" className="link-button" onClick={startOver}>
+            Start over with a different file
+          </button>
+        )}
+      </header>
+
+      <ol className="steps" aria-label="Progress">
+        {STEPS.map((label, i) => (
+          <li
+            key={label}
+            className={i === stepIndex ? 'is-current' : i < stepIndex ? 'is-done' : undefined}
+            aria-current={i === stepIndex ? 'step' : undefined}
+          >
+            <span className="step-number">{i + 1}</span>
+            {label}
+          </li>
+        ))}
+      </ol>
+
+      <main>{view}</main>
+    </div>
+  );
+}

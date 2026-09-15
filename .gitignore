@@ -26,3 +26,6 @@ import.csv
 data/
 private/
 *.xlsx
+
+# Downloaded at build time by scripts/fetch-model.mjs (pinned + checksummed)
+public/models/
