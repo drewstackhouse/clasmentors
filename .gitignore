@@ -23,8 +23,8 @@ import.csv
 *.csv
 !src/**/__fixtures__/*.csv
 !public/sample-data/*.csv
-data/
-private/
+/data/
+/private/
 *.xlsx
 
 # Downloaded at build time by scripts/fetch-model.mjs (pinned + checksummed)
